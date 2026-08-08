@@ -1,0 +1,65 @@
+function doPost(e) {
+  try {
+    var data = getData(e);
+    var type = data.type || '';
+
+    if (type === 'message' || (data.name && data.email && !type)) {
+      var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+      sheet.appendRow([data.name || '', data.email || '', data.message || '', new Date().toLocaleString()]);
+      return jsonResponse({ success: true });
+    }
+
+    if (type === 'photo' || type === 'resume') {
+      var filename = type === 'photo' ? 'profile_photo.jpg' : 'resume.pdf';
+      var mimeType = type === 'photo' ? 'image/jpeg' : 'application/pdf';
+      var b64 = String(data.data || '').split(',')[1] || String(data.data || '');
+      var blob = Utilities.newBlob(Utilities.base64Decode(b64), mimeType, filename);
+
+      var url = uploadToDrive(blob, filename);
+      if (!url) throw new Error('Could not create Drive link');
+
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var linksSheet = ss.getSheetByName('Links');
+      if (!linksSheet) linksSheet = ss.insertSheet('Links');
+      if (type === 'photo') {
+        linksSheet.getRange('A1').setValue('Profile Photo URL');
+        linksSheet.getRange('A2').setValue(url);
+      } else {
+        linksSheet.getRange('B1').setValue('Resume URL');
+        linksSheet.getRange('B2').setValue(url);
+      }
+
+      return jsonResponse({ success: true, url: url });
+    }
+
+    return jsonResponse({ success: false, error: 'Unknown type' });
+  } catch (err) {
+    return jsonResponse({ success: false, error: err.toString() });
+  }
+}
+
+function getData(e) {
+  if (!e || !e.postData) return e ? (e.parameter || {}) : {};
+  var contents = e.postData.contents || '';
+  try {
+    var parsed = JSON.parse(contents);
+    if (parsed && typeof parsed === 'object') return parsed;
+  } catch (err) {}
+  return e.parameter || {};
+}
+
+function uploadToDrive(blob, filename) {
+  var file = DriveApp.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return 'https://drive.google.com/uc?export=download&id=' + file.getId();
+}
+
+function jsonResponse(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// Run this once in the editor to authorize Google Drive access.
+function authDrive() {
+  DriveApp.getFilesByName('__auth_check__').hasNext();
+}
