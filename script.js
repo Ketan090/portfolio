@@ -817,14 +817,25 @@ document.addEventListener('DOMContentLoaded', function () {
   var BLOB_TOKEN = (typeof window !== 'undefined' && window.BLOB_TOKEN) || 'vercel_blob_rw_hsNf951gsDGCzL1Y_QqPWenRrxEjHQ8PDVldxfXrH5xTXLK';
   var MANIFEST_URL = 'https://hsnf951gsdgczl1y.public.blob.vercel-storage.com/manifest.json';
 
-  // Direct Vercel Blob upload for static sites
+  // Upload via /api/save serverless function (works on Vercel, avoids CORS limits)
+  function uploadViaServer(type, dataUrl, filename) {
+    return fetch('/api/save', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ type: type, data: dataUrl, filename: filename || '' })
+    }).then(function (res) {
+      if (!res.ok) throw new Error('Server upload HTTP ' + res.status);
+      return res.json();
+    });
+  }
+
+  // Direct Vercel Blob upload for manifest updates only (manifest.json uses only allowed CORS headers)
   function directBlobUpload(pathname, blob, contentType) {
     return fetch('https://blob.vercel-storage.com/' + pathname, {
       method: 'PUT',
       headers: {
         'authorization': 'Bearer ' + BLOB_TOKEN,
         'x-api-version': '7',
-        'x-add-random-suffix': 'false',
         'content-type': contentType || 'application/octet-stream'
       },
       body: blob
@@ -848,38 +859,46 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function uploadToBlob(pathname, data, isImage, statusEl) {
-    var blob = dataURLToBlob(data);
-    if (!blob) {
-      return Promise.reject(new Error('Invalid file data'));
-    }
-    var contentType = blob.type || (isImage ? 'image/jpeg' : 'application/pdf');
-
     if (statusEl) {
       statusEl.textContent = 'Storing in cloud...';
       statusEl.className = 'admin-drive-status';
     }
 
-    return directBlobUpload(pathname, blob, contentType)
-      .then(function (result) {
-        var updates = {};
-        if (isImage) {
-          updates.photoUrl = result.url;
-          updates.photoTimestamp = Date.now();
-        } else {
-          updates.resumeUrl = result.url;
-          updates.resumeDownloadUrl = result.downloadUrl || (result.url + '?download=1');
-          updates.resumeName = 'Ketan_Mahajan_Resume.pdf';
-          updates.resumeTimestamp = Date.now();
-        }
+    var type = isImage ? 'photo' : 'resume';
+    var filename = isImage ? 'profile_photo.jpg' : 'resume.pdf';
 
-        return updateCloudManifest(updates).then(function () {
-          onLinkReady(isImage ? 'photo' : 'resume', result.url, statusEl, result.downloadUrl);
-          return result.url;
-        });
+    // Primary: upload through Vercel serverless function /api/save
+    return uploadViaServer(type, data, filename)
+      .then(function (result) {
+        var url = isImage ? result.photoUrl : (result.resumeUrl || result.downloadUrl);
+        var downloadUrl = isImage ? url : (result.downloadUrl || url);
+        onLinkReady(type, url, statusEl, downloadUrl);
+        return url;
       })
-      .catch(function (err) {
-        console.warn('Direct blob upload note:', err && err.message ? err.message : err);
-        throw err;
+      .catch(function (serverErr) {
+        // Fallback: try direct blob upload if /api/save is unavailable (local dev without server)
+        console.warn('Server upload failed, trying direct blob:', serverErr.message);
+        var blob = dataURLToBlob(data);
+        if (!blob) throw new Error('Invalid file data');
+        var contentType = blob.type || (isImage ? 'image/jpeg' : 'application/pdf');
+
+        return directBlobUpload(pathname, blob, contentType)
+          .then(function (result) {
+            var updates = {};
+            if (isImage) {
+              updates.photoUrl = result.url;
+              updates.photoTimestamp = Date.now();
+            } else {
+              updates.resumeUrl = result.url;
+              updates.resumeDownloadUrl = result.downloadUrl || (result.url + '?download=1');
+              updates.resumeName = 'Ketan_Mahajan_Resume.pdf';
+              updates.resumeTimestamp = Date.now();
+            }
+            return updateCloudManifest(updates).then(function () {
+              onLinkReady(isImage ? 'photo' : 'resume', result.url, statusEl, result.downloadUrl);
+              return result.url;
+            });
+          });
       });
   }
 
