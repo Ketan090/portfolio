@@ -1,3 +1,25 @@
+function doGet(e) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var linksSheet = ss.getSheetByName('Links');
+    var photoUrl = '';
+    var resumeUrl = '';
+
+    if (linksSheet) {
+      photoUrl = String(linksSheet.getRange('A2').getValue() || '').trim();
+      resumeUrl = String(linksSheet.getRange('B2').getValue() || '').trim();
+    }
+
+    return jsonResponse({
+      success: true,
+      photoUrl: photoUrl,
+      resumeUrl: resumeUrl
+    });
+  } catch (err) {
+    return jsonResponse({ success: false, error: err.toString() });
+  }
+}
+
 function doPost(e) {
   try {
     var data = getData(e);

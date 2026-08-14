@@ -1,4 +1,4 @@
-import { handleUpload } from '@vercel/blob';
+const { handleUpload } = require('@vercel/blob');
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -15,7 +15,7 @@ function readBody(req) {
   });
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   try {
     const body = await readBody(req);
     const result = await handleUpload({
@@ -38,4 +38,4 @@ export default async function handler(req, res) {
     console.error('upload handler error', err);
     res.status(500).json({ error: err && err.message ? err.message : String(err) });
   }
-}
+};

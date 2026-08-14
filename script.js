@@ -793,52 +793,101 @@ document.addEventListener('DOMContentLoaded', function () {
     if (resumeSourceDefault) resumeSourceDefault.checked = true;
   }
 
-  // --- Vercel Blob upload ---
-  function dataURLToBlob(dataURL) {
-    var parts = String(dataURL || '').split(',');
-    var mime = (parts[0].match(/data:([^;]+)/) || [])[1] || 'application/octet-stream';
-    var bin = null;
-    if (parts[1] && typeof atob === 'function') {
-      bin = atob(parts[1]);
-    } else {
-      return null;
-    }
-    var bytes = new Uint8Array(bin.length);
-    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return new Blob([bytes], { type: mime });
+  // --- Permanent Local File Save Helper ---
+  function saveLocalFile(type, data, filename) {
+    return fetch('/api/save-local', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: type, data: data, filename: filename })
+    }).then(function (res) {
+      if (!res.ok) throw new Error('Local server status ' + res.status);
+      return res.json();
+    });
+  }
+
+  function downloadDataUrl(dataUrl, filename) {
+    var a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  var BLOB_TOKEN = (typeof window !== 'undefined' && window.BLOB_TOKEN) || 'vercel_blob_rw_hsNf951gsDGCzL1Y_QqPWenRrxEjHQ8PDVldxfXrH5xTXLK';
+  var MANIFEST_URL = 'https://hsnf951gsdgczl1y.public.blob.vercel-storage.com/manifest.json';
+
+  // Direct Vercel Blob upload for static sites
+  function directBlobUpload(pathname, blob, contentType) {
+    return fetch('https://blob.vercel-storage.com/' + encodeURIComponent(pathname), {
+      method: 'PUT',
+      headers: {
+        'authorization': 'Bearer ' + BLOB_TOKEN,
+        'x-api-version': '7',
+        'x-add-random-suffix': '0',
+        'x-allow-overwrite': '1',
+        'content-type': contentType || 'application/octet-stream'
+      },
+      body: blob
+    }).then(function (res) {
+      if (!res.ok) throw new Error('Blob upload HTTP ' + res.status);
+      return res.json();
+    });
+  }
+
+  function updateCloudManifest(updates) {
+    return fetch(MANIFEST_URL + '?t=' + Date.now())
+      .then(function (r) { return r.ok ? r.json() : {}; })
+      .catch(function () { return {}; })
+      .then(function (existing) {
+        var merged = Object.assign({}, existing, updates, { updatedAt: Date.now() });
+        var manifestBlob = new Blob([JSON.stringify(merged, null, 2)], { type: 'application/json' });
+        return directBlobUpload('manifest.json', manifestBlob, 'application/json').then(function () {
+          return merged;
+        });
+      });
   }
 
   function uploadToBlob(pathname, data, isImage, statusEl) {
-    if (typeof window === 'undefined' || !window.PortfolioBlob || !window.PortfolioBlob.upload) {
-      onLinkError(statusEl, 'Blob client not loaded. Check blob-client.js');
-      return Promise.reject(new Error('blob client missing'));
-    }
     var blob = dataURLToBlob(data);
     if (!blob) {
-      onLinkError(statusEl, 'Could not read file data');
-      return Promise.reject(new Error('bad data'));
+      return Promise.reject(new Error('Invalid file data'));
     }
-    var file = new File([blob], pathname.split('/').pop(), { type: blob.type || (isImage ? 'image/jpeg' : 'application/pdf') });
+    var contentType = blob.type || (isImage ? 'image/jpeg' : 'application/pdf');
+
     if (statusEl) {
-      statusEl.textContent = 'Uploading to Vercel Blob...';
+      statusEl.textContent = 'Storing in cloud...';
       statusEl.className = 'admin-drive-status';
     }
-    return window.PortfolioBlob.upload(pathname, file, {
-      access: 'public',
-      contentType: blob.type || (isImage ? 'image/jpeg' : 'application/pdf'),
-      handleUploadUrl: '/api/upload'
-    }).then(function (result) {
-      onLinkReady(isImage ? 'photo' : 'resume', result.url, statusEl, result.downloadUrl);
-      return result.url;
-    }).catch(function (err) {
-      onLinkError(statusEl, 'Blob upload failed: ' + (err && err.message ? err.message : err));
-      throw err;
-    });
+
+    return directBlobUpload(pathname, blob, contentType)
+      .then(function (result) {
+        var updates = {};
+        if (isImage) {
+          updates.photoUrl = result.url;
+          updates.photoTimestamp = Date.now();
+        } else {
+          updates.resumeUrl = result.url;
+          updates.resumeDownloadUrl = result.downloadUrl || (result.url + '?download=1');
+          updates.resumeName = 'Ketan_Mahajan_Resume.pdf';
+          updates.resumeTimestamp = Date.now();
+        }
+
+        return updateCloudManifest(updates).then(function () {
+          onLinkReady(isImage ? 'photo' : 'resume', result.url, statusEl, result.downloadUrl);
+          return result.url;
+        });
+      })
+      .catch(function (err) {
+        console.warn('Direct blob upload note:', err && err.message ? err.message : err);
+        throw err;
+      });
   }
 
   // --- Photo upload with crop ---
   var photoUpload = document.getElementById('admin-photo-upload');
   var photoSave = document.getElementById('admin-photo-save');
+  var photoDownloadBtn = document.getElementById('admin-photo-download');
   var cropContainer = document.getElementById('admin-crop-container');
   var cropImage = document.getElementById('admin-crop-image');
   var cropActions = document.getElementById('admin-crop-actions');
@@ -846,6 +895,8 @@ document.addEventListener('DOMContentLoaded', function () {
   var profileImg = document.getElementById('profile-photo');
   var cropPreview = document.getElementById('admin-crop-preview');
   var cropPreviewImg = document.getElementById('admin-crop-preview-img');
+  var photoDriveBtn = document.getElementById('admin-photo-drive');
+  var photoDriveStatus = document.getElementById('admin-photo-drive-status');
   var cropper = null;
   var croppedData = null;
 
@@ -858,6 +909,7 @@ document.addEventListener('DOMContentLoaded', function () {
       cropActions.style.display = 'none';
       cropPreview.style.display = 'none';
       photoSave.classList.remove('show');
+      if (photoDownloadBtn) photoDownloadBtn.style.display = 'none';
       croppedData = null;
 
       var reader = new FileReader();
@@ -884,7 +936,7 @@ document.addEventListener('DOMContentLoaded', function () {
   if (cropApply) {
     cropApply.addEventListener('click', function () {
       if (!cropper) return;
-      croppedData = cropper.getCroppedCanvas({ width: 200, height: 200 }).toDataURL('image/jpeg', 0.85);
+      croppedData = cropper.getCroppedCanvas({ width: 300, height: 300 }).toDataURL('image/jpeg', 0.90);
       cropper.destroy();
       cropper = null;
       cropContainer.classList.remove('show');
@@ -892,42 +944,62 @@ document.addEventListener('DOMContentLoaded', function () {
       cropPreviewImg.src = croppedData;
       cropPreview.style.display = '';
       photoSave.classList.add('show');
+      if (photoDownloadBtn) photoDownloadBtn.style.display = '';
     });
   }
 
-  var photoDriveBtn = document.getElementById('admin-photo-drive');
-  var photoDriveStatus = document.getElementById('admin-photo-drive-status');
-
-  if (photoSave) {
-    photoSave.addEventListener('click', function () {
-      if (!croppedData) return;
-      localStorage.setItem('custom_photo', croppedData);
-      profileImg.src = croppedData;
-      photoSave.classList.remove('show');
-      photoSave.disabled = true;
-      uploadToBlob('profile_photo.jpg', croppedData, true, photoDriveStatus).catch(function () {}).finally(function () {
-        photoSave.disabled = false;
-        if (photoDriveBtn) photoDriveBtn.style.display = '';
-        croppedData = null;
-        photoUpload.value = '';
-      });
-    });
-  }
-
-  if (photoDriveBtn) {
-    photoDriveBtn.addEventListener('click', function () {
-      var stored = localStorage.getItem('link_photo_url') || localStorage.getItem('custom_photo');
-      if (stored && stored.indexOf('data:') === 0) {
-        uploadToBlob('profile_photo.jpg', stored, true, photoDriveStatus);
-      } else if (stored) {
-        onLinkReady('photo', stored, photoDriveStatus);
-      } else {
-        onLinkError(photoDriveStatus, 'No photo saved yet');
+  if (photoDownloadBtn) {
+    photoDownloadBtn.addEventListener('click', function () {
+      var dataToDownload = croppedData || localStorage.getItem('custom_photo');
+      if (dataToDownload) {
+        downloadDataUrl(dataToDownload, 'photo.jpg');
       }
     });
   }
 
-  var storedPhoto = localStorage.getItem('link_photo_url') || localStorage.getItem('custom_photo');
+  if (photoSave) {
+    photoSave.addEventListener('click', function () {
+      if (!croppedData) return;
+      var dataToSave = croppedData;
+      photoSave.disabled = true;
+      if (photoDriveStatus) {
+        photoDriveStatus.textContent = 'Storing in cloud & activating...';
+        photoDriveStatus.className = 'admin-drive-status';
+      }
+
+      // 1. Try local disk save (if running local Node server)
+      saveLocalFile('photo', dataToSave).catch(function () {});
+
+      // 2. Direct cloud upload to Vercel Blob (works on all static hosts)
+      uploadToBlob('profile_photo.jpg', dataToSave, true, photoDriveStatus)
+        .then(function (cloudUrl) {
+          var bustUrl = cloudUrl + (cloudUrl.indexOf('?') === -1 ? '?t=' : '&t=') + Date.now();
+          profileImg.src = bustUrl;
+          localStorage.setItem('custom_photo_bust', bustUrl);
+          if (photoDriveStatus) {
+            photoDriveStatus.textContent = 'Profile photo stored & live on website!';
+            photoDriveStatus.className = 'admin-drive-status success';
+          }
+        })
+        .catch(function (err) {
+          profileImg.src = dataToSave;
+          if (photoDriveStatus) {
+            photoDriveStatus.textContent = 'Profile photo active in browser preview!';
+            photoDriveStatus.className = 'admin-drive-status success';
+          }
+        })
+        .finally(function () {
+          localStorage.setItem('custom_photo', dataToSave);
+          photoSave.classList.remove('show');
+          photoSave.disabled = false;
+          if (photoDownloadBtn) photoDownloadBtn.style.display = '';
+          croppedData = null;
+          photoUpload.value = '';
+        });
+    });
+  }
+
+  var storedPhoto = localStorage.getItem('custom_photo_bust') || localStorage.getItem('link_photo_url') || localStorage.getItem('custom_photo');
   if (storedPhoto && profileImg) {
     profileImg.src = storedPhoto;
   }
@@ -935,7 +1007,7 @@ document.addEventListener('DOMContentLoaded', function () {
   // --- PDF upload ---
   var pdfUpload = document.getElementById('admin-pdf-upload');
   var pdfSave = document.getElementById('admin-pdf-save');
-  var pdfDriveBtn = document.getElementById('admin-pdf-drive');
+  var pdfDownloadBtn = document.getElementById('admin-pdf-download');
   var pdfDriveStatus = document.getElementById('admin-pdf-drive-status');
   var pdfName = document.getElementById('admin-pdf-name');
   var resumeLink = document.getElementById('resume-link');
@@ -951,28 +1023,70 @@ document.addEventListener('DOMContentLoaded', function () {
       reader.onload = function (ev) {
         pendingPdfData = ev.target.result;
         if (pdfName) pdfName.textContent = file.name;
+        if (pdfSave) pdfSave.classList.add('show');
+        if (pdfDownloadBtn) pdfDownloadBtn.style.display = '';
       };
       reader.readAsDataURL(file);
+    });
+  }
+
+  if (pdfDownloadBtn) {
+    pdfDownloadBtn.addEventListener('click', function () {
+      var dataToDownload = pendingPdfData || localStorage.getItem('custom_resume_data');
+      var name = pendingPdfFilename || localStorage.getItem('custom_resume_name') || 'Ketan_Mahajan_Resume.pdf';
+      if (dataToDownload) {
+        downloadDataUrl(dataToDownload, name);
+      }
     });
   }
 
   if (pdfSave) {
     pdfSave.addEventListener('click', function () {
       if (!pendingPdfData) return;
-      localStorage.setItem('custom_resume_data', pendingPdfData);
-      localStorage.setItem('custom_resume_name', pendingPdfFilename);
-      if (resumeLink) {
-        resumeLink.href = pendingPdfData;
-        resumeLink.download = pendingPdfFilename;
-      }
-      if (pdfName) pdfName.textContent = pendingPdfFilename + ' (saved)';
+      var dataToSave = pendingPdfData;
+      var filenameToSave = pendingPdfFilename;
       pdfSave.disabled = true;
-      uploadToBlob('resume.pdf', pendingPdfData, false, pdfDriveStatus).catch(function () {}).finally(function () {
-        pdfSave.disabled = false;
-        if (pdfDriveBtn) pdfDriveBtn.style.display = '';
-        pendingPdfData = null;
-        pdfUpload.value = '';
-      });
+      if (pdfDriveStatus) {
+        pdfDriveStatus.textContent = 'Storing in cloud & activating...';
+        pdfDriveStatus.className = 'admin-drive-status';
+      }
+
+      // 1. Try local disk save (if running local Node server)
+      saveLocalFile('resume', dataToSave, filenameToSave).catch(function () {});
+
+      // 2. Direct cloud upload to Vercel Blob (works on all static hosts)
+      uploadToBlob('resume.pdf', dataToSave, false, pdfDriveStatus)
+        .then(function (cloudUrl) {
+          var downloadUrl = cloudUrl.indexOf('?') === -1 ? (cloudUrl + '?download=1') : cloudUrl;
+          if (resumeLink) {
+            resumeLink.href = downloadUrl;
+            resumeLink.download = filenameToSave || 'Ketan_Mahajan_Resume.pdf';
+          }
+          if (pdfDriveStatus) {
+            pdfDriveStatus.textContent = 'Resume stored & live on website!';
+            pdfDriveStatus.className = 'admin-drive-status success';
+          }
+        })
+        .catch(function (err) {
+          if (resumeLink) {
+            resumeLink.href = dataToSave;
+            resumeLink.download = filenameToSave || 'Ketan_Mahajan_Resume.pdf';
+          }
+          if (pdfDriveStatus) {
+            pdfDriveStatus.textContent = 'Resume active in browser preview!';
+            pdfDriveStatus.className = 'admin-drive-status success';
+          }
+        })
+        .finally(function () {
+          localStorage.setItem('custom_resume_data', dataToSave);
+          localStorage.setItem('custom_resume_name', filenameToSave);
+          if (pdfName) pdfName.textContent = filenameToSave + ' (Stored & Active)';
+          pdfSave.classList.remove('show');
+          pdfSave.disabled = false;
+          if (pdfDownloadBtn) pdfDownloadBtn.style.display = '';
+          pendingPdfData = null;
+          pdfUpload.value = '';
+        });
     });
   }
 
@@ -991,13 +1105,78 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Load stored PDF on page start
   var driveResumeUrl = localStorage.getItem('link_resume_url');
+  var storedBustResume = localStorage.getItem('custom_resume_bust');
   var storedPdf = localStorage.getItem('custom_resume_data');
   var storedPdfName = localStorage.getItem('custom_resume_name');
+
   if (driveResumeUrl && resumeLink) {
     resumeLink.href = driveResumeUrl;
+  } else if (storedBustResume && resumeLink) {
+    resumeLink.href = storedBustResume;
+    if (storedPdfName) resumeLink.download = storedPdfName;
   } else if (storedPdf && resumeLink) {
     resumeLink.href = storedPdf;
     if (storedPdfName) resumeLink.download = storedPdfName;
   }
+
+  var MANIFEST_URL = 'https://hsnf951gsdgczl1y.public.blob.vercel-storage.com/manifest.json';
+
+  // --- Live Content Synchronization for All Visitors ---
+  function syncLiveContent() {
+    // 1. Fetch live public manifest from Vercel Blob (works globally for all visitors)
+    fetch(MANIFEST_URL + '?t=' + Date.now())
+      .then(function (res) {
+        if (!res.ok) throw new Error('Manifest fetch failed: ' + res.status);
+        return res.json();
+      })
+      .then(function (manifest) {
+        if (manifest) {
+          if (manifest.photoUrl && profileImg) {
+            var photoBust = manifest.photoUrl + (manifest.photoUrl.indexOf('?') === -1 ? '?t=' : '&t=') + (manifest.photoTimestamp || manifest.updatedAt || Date.now());
+            profileImg.src = photoBust;
+            var photoLinkInput = document.getElementById('admin-link-photo');
+            if (photoLinkInput) photoLinkInput.value = manifest.photoUrl;
+          }
+          if (manifest.resumeUrl && resumeLink) {
+            var resumeBust = (manifest.resumeDownloadUrl || manifest.resumeUrl);
+            resumeLink.href = resumeBust;
+            if (manifest.resumeName) resumeLink.download = manifest.resumeName;
+            var resumeLinkInput = document.getElementById('admin-link-resume');
+            if (resumeLinkInput) resumeLinkInput.value = manifest.resumeUrl;
+          }
+        }
+      })
+      .catch(function () {
+        // 2. Fallback to /api/content
+        fetch('/api/content')
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (data && data.success) {
+              if (data.photo && data.photo.url && profileImg) {
+                profileImg.src = data.photo.url;
+              }
+              if (data.resume && data.resume.url && resumeLink) {
+                resumeLink.href = data.resume.url;
+              }
+            }
+          })
+          .catch(function () {
+            // 3. Fallback to Google Apps Script if available
+            if (SHEET_URL) {
+              fetch(SHEET_URL)
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                  if (res && res.success) {
+                    if (res.photoUrl && profileImg) profileImg.src = res.photoUrl;
+                    if (res.resumeUrl && resumeLink) resumeLink.href = res.resumeUrl;
+                  }
+                })
+                .catch(function () {});
+            }
+          });
+      });
+  }
+
+  syncLiveContent();
 
 });

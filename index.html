@@ -459,18 +459,8 @@
         </div>
         <div class="admin-tab-panel" id="tab-photo">
           <h3 class="admin-title">Profile Photo</h3>
-          <p class="admin-subtitle">Upload a photo to use as your profile picture</p>
-          <div class="admin-source-options">
-            <label class="admin-source-option">
-              <input type="radio" name="photo-source" value="default" id="photo-source-default" />
-              <span>Use default (profile/photo.jpg)</span>
-            </label>
-            <label class="admin-source-option">
-              <input type="radio" name="photo-source" value="custom" id="photo-source-custom" />
-              <span>Use custom photo</span>
-            </label>
-          </div>
-          <div id="admin-photo-custom-section" style="display:none;">
+          <p class="admin-subtitle">Upload a photo to permanently store it in the cloud and use it as the website profile picture.</p>
+          <div class="admin-upload-section">
             <input type="file" id="admin-photo-upload" accept="image/*" />
             <div class="admin-crop-container" id="admin-crop-container">
               <img id="admin-crop-image" />
@@ -484,34 +474,24 @@
                 <img id="admin-crop-preview-img" />
               </div>
             </div>
-            <button id="admin-photo-save" class="btn btn-outline admin-upload-btn">Set as Profile Photo</button>
-            <button id="admin-photo-drive" class="btn btn-outline admin-upload-btn" style="display:none;">
+            <button id="admin-photo-save" class="btn btn-primary admin-upload-btn" style="display:none;">Store &amp; Update Profile Photo</button>
+            <button id="admin-photo-download" class="btn btn-outline admin-upload-btn" style="display:none;">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Generate Link
+              Download photo.jpg
             </button>
             <span class="admin-drive-status" id="admin-photo-drive-status"></span>
           </div>
         </div>
         <div class="admin-tab-panel" id="tab-pdf">
           <h3 class="admin-title">Resume</h3>
-          <p class="admin-subtitle">Upload a PDF to use as your resume</p>
-          <div class="admin-source-options">
-            <label class="admin-source-option">
-              <input type="radio" name="resume-source" value="default" id="resume-source-default" />
-              <span>Use default (folder file)</span>
-            </label>
-            <label class="admin-source-option">
-              <input type="radio" name="resume-source" value="custom" id="resume-source-custom" />
-              <span>Use custom resume</span>
-            </label>
-          </div>
-          <div id="admin-resume-custom-section" style="display:none;">
+          <p class="admin-subtitle">Upload a PDF to permanently store it in the cloud and use it as the website resume.</p>
+          <div class="admin-upload-section">
             <input type="file" id="admin-pdf-upload" accept=".pdf" />
             <span class="admin-pdf-name" id="admin-pdf-name"></span>
-            <button id="admin-pdf-save" class="btn btn-outline admin-upload-btn">Set as Resume</button>
-            <button id="admin-pdf-drive" class="btn btn-outline admin-upload-btn" style="display:none;">
+            <button id="admin-pdf-save" class="btn btn-primary admin-upload-btn" style="display:none;">Store &amp; Update Resume PDF</button>
+            <button id="admin-pdf-download" class="btn btn-outline admin-upload-btn" style="display:none;">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Generate Link
+              Download PDF File
             </button>
             <span class="admin-drive-status" id="admin-pdf-drive-status"></span>
           </div>
@@ -539,7 +519,8 @@
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+  <script src="blob-token.js"></script>
   <script src="blob-client.js"></script>
-  <script src="script.js?v=4"></script>
+  <script src="script.js?v=5"></script>
 </body>
 </html>

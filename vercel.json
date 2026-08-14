@@ -1,7 +1,18 @@
 {
-  "functions": {
-    "api/upload.js": {
-      "runtime": "nodejs20.x"
+  "version": 2,
+  "buildCommand": null,
+  "outputDirectory": null,
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
-  }
+  ]
 }

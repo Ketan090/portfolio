@@ -1781,11 +1781,13 @@ a.contact-card-value:hover { color: var(--primary); }
   object-fit: cover;
 }
 
-#admin-photo-save {
+#admin-photo-save,
+#admin-pdf-save {
   display: none;
 }
 
-#admin-photo-save.show {
+#admin-photo-save.show,
+#admin-pdf-save.show {
   display: inline-flex;
 }
 
