@@ -819,18 +819,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Direct Vercel Blob upload for static sites
   function directBlobUpload(pathname, blob, contentType) {
-    return fetch('https://blob.vercel-storage.com/' + encodeURIComponent(pathname), {
+    return fetch('https://blob.vercel-storage.com/' + pathname, {
       method: 'PUT',
       headers: {
         'authorization': 'Bearer ' + BLOB_TOKEN,
         'x-api-version': '7',
-        'x-add-random-suffix': '0',
-        'x-allow-overwrite': '1',
+        'x-add-random-suffix': 'false',
         'content-type': contentType || 'application/octet-stream'
       },
       body: blob
     }).then(function (res) {
-      if (!res.ok) throw new Error('Blob upload HTTP ' + res.status);
+      if (!res.ok) return res.text().then(function(t) { throw new Error('Blob upload HTTP ' + res.status + ': ' + t); });
       return res.json();
     });
   }
