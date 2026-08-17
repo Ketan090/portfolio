@@ -1,7 +1,6 @@
 {
   "version": 2,
   "builds": [
-    { "src": "**/*", "use": "@vercel/static" },
     { "src": "api/*.js", "use": "@vercel/node@5.0.0" }
   ],
   "routes": [
@@ -12,5 +11,6 @@
     "api/*.js": {
       "maxDuration": 30
     }
-  }
+  },
+  "outputDirectory": "."
 }
