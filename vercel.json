@@ -1,22 +1,7 @@
 {
   "version": 2,
-  "builds": [
-    { "src": "api/*.js", "use": "@vercel/node@5.0.0" }
-  ],
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/$1" },
-    { "handle": "filesystem" },
-    { "src": "/style.css", "dest": "/style.css" },
-    { "src": "/script.js", "dest": "/script.js" },
-    { "src": "/blob-token.js", "dest": "/blob-token.js" },
-    { "src": "/blob-client.js", "dest": "/blob-client.js" },
-    { "src": "/profile/(.*)", "dest": "/profile/$1" },
-    { "src": "/resume/(.*)", "dest": "/resume/$1" },
     { "src": "/(.*)", "dest": "/index.html" }
-  ],
-  "functions": {
-    "api/*.js": {
-      "maxDuration": 30
-    }
-  }
+  ]
 }
