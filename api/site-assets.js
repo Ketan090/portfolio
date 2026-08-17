@@ -1,4 +1,4 @@
-import { head, list } from '@vercel/blob';
+const { head, list } = require('@vercel/blob');
 
 const ASSETS = {
   photo: { pathname: 'profile_photo.jpg', type: 'photo' },
@@ -28,7 +28,7 @@ function mapPathname(pathname) {
   return null;
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
