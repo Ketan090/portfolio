@@ -7,11 +7,9 @@
     { "src": "blob-token.js", "use": "@vercel/static" },
     { "src": "blob-client.js", "use": "@vercel/static" },
     { "src": "profile/photo.jpg", "use": "@vercel/static" },
-    { "src": "resume/Ketan_Mahajan_Resume.pdf", "use": "@vercel/static" },
-    { "src": "api/*.js", "use": "@vercel/node" }
+    { "src": "resume/Ketan_Mahajan_Resume.pdf", "use": "@vercel/static" }
   ],
   "routes": [
-    { "src": "/api/(.*)", "dest": "/api/$1" },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
