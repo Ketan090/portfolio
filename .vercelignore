@@ -1,4 +1,6 @@
 server.js
+package.json
+package-lock.json
 setup-telegram-webhook.mjs
 google-apps-script.txt
 test-link.psl
