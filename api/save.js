@@ -1,12 +1,33 @@
 const { put } = require('@vercel/blob');
 
+// Disable Vercel's default body parser so the manual readBody below
+// can consume the raw request stream (the default parser intercepts it).
+module.exports.config = {
+  api: {
+    bodyParser: false,
+  },
+  maxDuration: 30,
+};
+
 function readBody(req) {
   return new Promise((resolve, reject) => {
-    let body = '';
-    req.on('data', (c) => body += c);
+    const chunks = [];
+    let totalBytes = 0;
+    const MAX_BYTES = 20 * 1024 * 1024; // 20 MB safety cap
+
+    req.on('data', (chunk) => {
+      totalBytes += chunk.length;
+      if (totalBytes > MAX_BYTES) {
+        req.destroy();
+        reject(new Error('Request body too large (max 20 MB)'));
+        return;
+      }
+      chunks.push(chunk);
+    });
     req.on('end', () => {
       try {
-        resolve(body ? JSON.parse(body) : {});
+        const raw = Buffer.concat(chunks).toString('utf8');
+        resolve(raw ? JSON.parse(raw) : {});
       } catch (e) {
         reject(e);
       }

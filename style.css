@@ -1914,6 +1914,172 @@ a.contact-card-value:hover { color: var(--primary); }
   background: rgba(239, 68, 68, 0.05);
 }
 
+/* === SET AS PROFILE PHOTO BUTTON (admin panel) === */
+.set-photo-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 13px;
+  font-family: 'Inter', -apple-system, sans-serif;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.set-photo-btn:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+.set-photo-crop-wrap {
+  margin-top: 10px;
+  text-align: center;
+}
+
+.set-photo-crop-wrap img {
+  max-width: 100%;
+  max-height: 220px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.set-photo-crop-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+/* === TOAST NOTIFICATION === */
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border-radius: var(--radius-md);
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  font-size: 14px;
+  font-family: 'Inter', -apple-system, sans-serif;
+  color: var(--fg);
+  pointer-events: auto;
+  transform: translateX(120%);
+  opacity: 0;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+  max-width: 380px;
+}
+
+.toast.show {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.toast.hide {
+  transform: translateX(120%);
+  opacity: 0;
+}
+
+.toast-icon {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.toast-icon.success {
+  background: rgba(34, 197, 94, 0.12);
+  color: #22c55e;
+}
+
+.toast-icon.error {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+.toast-icon.info {
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+}
+
+.toast-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.toast-title {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+.toast-msg {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toast-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 0 0 8px;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.toast-close:hover {
+  color: var(--fg);
+}
+
+.toast-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  transition: width linear;
+}
+
+.toast.success .toast-progress { background: #22c55e; }
+.toast.error .toast-progress { background: #ef4444; }
+.toast.info .toast-progress { background: #3b82f6; }
+
+@media (max-width: 480px) {
+  .toast-container {
+    bottom: 12px;
+    right: 12px;
+    left: 12px;
+  }
+  .toast { max-width: 100%; }
+}
+
 /* === REVEAL ANIMATIONS === */
 .reveal {
   opacity: 0;

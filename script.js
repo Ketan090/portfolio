@@ -1,5 +1,79 @@
 document.addEventListener('DOMContentLoaded', function () {
 
+  // --- TOAST NOTIFICATION ---
+  function showToast(type, title, message, duration) {
+    duration = duration || 4000;
+    var container = document.getElementById('toast-container');
+    if (!container) return null;
+
+    var icons = {
+      success: '\u2713',
+      error: '\u2717',
+      info: '\u2139'
+    };
+
+    var toast = document.createElement('div');
+    toast.className = 'toast ' + type;
+    toast.style.position = 'relative';
+    toast.innerHTML =
+      '<div class="toast-icon ' + type + '">' + (icons[type] || icons.info) + '</div>' +
+      '<div class="toast-body">' +
+        '<div class="toast-title">' + title + '</div>' +
+        '<div class="toast-msg">' + message + '</div>' +
+      '</div>' +
+      '<button class="toast-close" aria-label="Close">&times;</button>' +
+      '<div class="toast-progress"></div>';
+
+    container.appendChild(toast);
+
+    // Animate in
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        toast.classList.add('show');
+      });
+    });
+
+    // Close button
+    var closeBtn = toast.querySelector('.toast-close');
+    function dismiss() {
+      toast.classList.remove('show');
+      toast.classList.add('hide');
+      setTimeout(function () {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+      }, 400);
+    }
+    closeBtn.addEventListener('click', dismiss);
+
+    // Progress bar
+    var progress = toast.querySelector('.toast-progress');
+    if (progress) {
+      progress.style.width = '100%';
+      progress.style.transitionDuration = duration + 'ms';
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          progress.style.width = '0%';
+        });
+      });
+    }
+
+    // Auto-dismiss
+    var timer = setTimeout(dismiss, duration);
+    toast.addEventListener('mouseenter', function () {
+      clearTimeout(timer);
+      if (progress) progress.style.transitionDuration = '0s';
+    });
+    toast.addEventListener('mouseleave', function () {
+      if (progress) {
+        var remaining = parseFloat(getComputedStyle(progress).width) / parseFloat(getComputedStyle(progress.parentElement).width) * duration;
+        progress.style.transitionDuration = remaining + 'ms';
+        progress.style.width = '0%';
+      }
+      timer = setTimeout(dismiss, 3000);
+    });
+
+    return { dismiss: dismiss };
+  }
+
   // --- BOOT LOADING ---
   (function () {
     var loader = document.getElementById('loading-screen');
@@ -646,6 +720,8 @@ document.addEventListener('DOMContentLoaded', function () {
       statusEl.className = 'admin-drive-status success';
       setTimeout(function () { statusEl.textContent = ''; statusEl.className = 'admin-drive-status'; }, 6000);
     }
+    var label = type === 'photo' ? 'Profile Photo' : 'Resume';
+    showToast('success', label + ' Uploaded', 'File stored in the cloud and live on the website.');
   }
 
   function onLinkError(statusEl, msg) {
@@ -653,6 +729,7 @@ document.addEventListener('DOMContentLoaded', function () {
       statusEl.textContent = msg;
       statusEl.className = 'admin-drive-status error';
     }
+    showToast('error', 'Upload Failed', msg || 'Something went wrong. Please try again.');
   }
 
   function generateLink(type, data, statusEl) {
@@ -817,6 +894,18 @@ document.addEventListener('DOMContentLoaded', function () {
   var BLOB_TOKEN = (typeof window !== 'undefined' && window.BLOB_TOKEN) || 'vercel_blob_rw_hsNf951gsDGCzL1Y_QqPWenRrxEjHQ8PDVldxfXrH5xTXLK';
   var MANIFEST_URL = 'https://hsnf951gsdgczl1y.public.blob.vercel-storage.com/manifest.json';
 
+  // Convert a data URL to a Blob
+  function dataURLToBlob(dataURL) {
+    if (!dataURL) return null;
+    var parts = dataURL.match(/^data:([^;]+);base64,(.+)$/);
+    if (!parts) return null;
+    var mime = parts[1];
+    var raw = atob(parts[2]);
+    var arr = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return new Blob([arr], { type: mime });
+  }
+
   // Upload via /api/save serverless function (works on Vercel, avoids CORS limits)
   function uploadViaServer(type, dataUrl, filename) {
     return fetch('/api/save', {
@@ -902,120 +991,8 @@ document.addEventListener('DOMContentLoaded', function () {
       });
   }
 
-  // --- Photo upload with crop ---
-  var photoUpload = document.getElementById('admin-photo-upload');
-  var photoSave = document.getElementById('admin-photo-save');
-  var photoDownloadBtn = document.getElementById('admin-photo-download');
-  var cropContainer = document.getElementById('admin-crop-container');
-  var cropImage = document.getElementById('admin-crop-image');
-  var cropActions = document.getElementById('admin-crop-actions');
-  var cropApply = document.getElementById('admin-crop-apply');
+  // --- Photo (old crop UI removed — using set-photo-btn flow below) ---
   var profileImg = document.getElementById('profile-photo');
-  var cropPreview = document.getElementById('admin-crop-preview');
-  var cropPreviewImg = document.getElementById('admin-crop-preview-img');
-  var photoDriveBtn = document.getElementById('admin-photo-drive');
-  var photoDriveStatus = document.getElementById('admin-photo-drive-status');
-  var cropper = null;
-  var croppedData = null;
-
-  if (photoUpload) {
-    photoUpload.addEventListener('change', function (e) {
-      var file = e.target.files[0];
-      if (!file) return;
-      if (cropper) { cropper.destroy(); cropper = null; }
-      cropContainer.classList.remove('show');
-      cropActions.style.display = 'none';
-      cropPreview.style.display = 'none';
-      photoSave.classList.remove('show');
-      if (photoDownloadBtn) photoDownloadBtn.style.display = 'none';
-      croppedData = null;
-
-      var reader = new FileReader();
-      reader.onload = function (ev) {
-        cropImage.src = ev.target.result;
-        cropContainer.classList.add('show');
-        cropImage.onload = function () {
-          cropper = new Cropper(cropImage, {
-            aspectRatio: 1,
-            viewMode: 1,
-            dragMode: 'move',
-            autoCropArea: 1,
-            cropBoxMovable: true,
-            cropBoxResizable: true,
-            background: false
-          });
-          cropActions.style.display = '';
-        };
-      };
-      reader.readAsDataURL(file);
-    });
-  }
-
-  if (cropApply) {
-    cropApply.addEventListener('click', function () {
-      if (!cropper) return;
-      croppedData = cropper.getCroppedCanvas({ width: 300, height: 300 }).toDataURL('image/jpeg', 0.90);
-      cropper.destroy();
-      cropper = null;
-      cropContainer.classList.remove('show');
-      cropActions.style.display = 'none';
-      cropPreviewImg.src = croppedData;
-      cropPreview.style.display = '';
-      photoSave.classList.add('show');
-      if (photoDownloadBtn) photoDownloadBtn.style.display = '';
-    });
-  }
-
-  if (photoDownloadBtn) {
-    photoDownloadBtn.addEventListener('click', function () {
-      var dataToDownload = croppedData || localStorage.getItem('custom_photo');
-      if (dataToDownload) {
-        downloadDataUrl(dataToDownload, 'photo.jpg');
-      }
-    });
-  }
-
-  if (photoSave) {
-    photoSave.addEventListener('click', function () {
-      if (!croppedData) return;
-      var dataToSave = croppedData;
-      photoSave.disabled = true;
-      if (photoDriveStatus) {
-        photoDriveStatus.textContent = 'Storing in cloud & activating...';
-        photoDriveStatus.className = 'admin-drive-status';
-      }
-
-      // 1. Try local disk save (if running local Node server)
-      saveLocalFile('photo', dataToSave).catch(function () {});
-
-      // 2. Direct cloud upload to Vercel Blob (works on all static hosts)
-      uploadToBlob('profile_photo.jpg', dataToSave, true, photoDriveStatus)
-        .then(function (cloudUrl) {
-          var bustUrl = cloudUrl + (cloudUrl.indexOf('?') === -1 ? '?t=' : '&t=') + Date.now();
-          profileImg.src = bustUrl;
-          localStorage.setItem('custom_photo_bust', bustUrl);
-          if (photoDriveStatus) {
-            photoDriveStatus.textContent = 'Profile photo stored & live on website!';
-            photoDriveStatus.className = 'admin-drive-status success';
-          }
-        })
-        .catch(function (err) {
-          profileImg.src = dataToSave;
-          if (photoDriveStatus) {
-            photoDriveStatus.textContent = 'Profile photo active in browser preview!';
-            photoDriveStatus.className = 'admin-drive-status success';
-          }
-        })
-        .finally(function () {
-          localStorage.setItem('custom_photo', dataToSave);
-          photoSave.classList.remove('show');
-          photoSave.disabled = false;
-          if (photoDownloadBtn) photoDownloadBtn.style.display = '';
-          croppedData = null;
-          photoUpload.value = '';
-        });
-    });
-  }
 
   var storedPhoto = localStorage.getItem('custom_photo_bust') || localStorage.getItem('link_photo_url') || localStorage.getItem('custom_photo');
   if (storedPhoto && profileImg) {
@@ -1084,6 +1061,7 @@ document.addEventListener('DOMContentLoaded', function () {
             pdfDriveStatus.textContent = 'Resume stored & live on website!';
             pdfDriveStatus.className = 'admin-drive-status success';
           }
+          showToast('success', 'Resume Uploaded', 'Resume PDF stored in Vercel Blob and live on the website.');
         })
         .catch(function (err) {
           if (resumeLink) {
@@ -1094,6 +1072,7 @@ document.addEventListener('DOMContentLoaded', function () {
             pdfDriveStatus.textContent = 'Resume active in browser preview!';
             pdfDriveStatus.className = 'admin-drive-status success';
           }
+          showToast('info', 'Preview Only', 'Cloud upload unavailable — resume is active in this browser only.');
         })
         .finally(function () {
           localStorage.setItem('custom_resume_data', dataToSave);
@@ -1196,5 +1175,91 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   syncLiveContent();
+
+  // --- Set as Profile Picture Button (hero section) ---
+  var setPhotoBtn = document.getElementById('set-photo-btn');
+  var setPhotoInput = document.getElementById('set-photo-input');
+  var setCropWrap = document.getElementById('set-photo-crop-wrap');
+  var setCropImg = document.getElementById('set-photo-crop-img');
+  var setCropApply = document.getElementById('set-photo-crop-apply');
+  var setCropCancel = document.getElementById('set-photo-crop-cancel');
+  var setCropper = null;
+  var setPhotoData = null;
+
+  if (setPhotoBtn) {
+    setPhotoBtn.addEventListener('click', function () {
+      setPhotoInput.click();
+    });
+  }
+
+  if (setPhotoInput) {
+    setPhotoInput.addEventListener('change', function (e) {
+      var file = e.target.files[0];
+      if (!file) return;
+      if (setCropper) { setCropper.destroy(); setCropper = null; }
+      setCropWrap.style.display = 'none';
+      setPhotoData = null;
+
+      var reader = new FileReader();
+      reader.onload = function (ev) {
+        setCropImg.src = ev.target.result;
+        setCropWrap.style.display = '';
+        setCropImg.onload = function () {
+          setCropper = new Cropper(setCropImg, {
+            aspectRatio: 1,
+            viewMode: 1,
+            dragMode: 'move',
+            autoCropArea: 1,
+            background: false
+          });
+        };
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  if (setCropApply) {
+    setCropApply.addEventListener('click', function () {
+      if (!setCropper) return;
+      setPhotoData = setCropper.getCroppedCanvas({ width: 300, height: 300 }).toDataURL('image/jpeg', 0.90);
+      setCropper.destroy();
+      setCropper = null;
+      setCropWrap.style.display = 'none';
+
+      var photoDriveStatus = document.getElementById('admin-photo-drive-status');
+      if (photoDriveStatus) {
+        photoDriveStatus.textContent = 'Storing in cloud & activating...';
+        photoDriveStatus.className = 'admin-drive-status';
+      }
+      showToast('info', 'Uploading...', 'Sending photo to Vercel Blob storage.');
+
+      uploadToBlob('profile_photo.jpg', setPhotoData, true, photoDriveStatus)
+        .then(function (cloudUrl) {
+          var bustUrl = cloudUrl + (cloudUrl.indexOf('?') === -1 ? '?t=' : '&t=') + Date.now();
+          profileImg.src = bustUrl;
+          localStorage.setItem('custom_photo_bust', bustUrl);
+          localStorage.setItem('custom_photo', setPhotoData);
+          showToast('success', 'Profile Picture Set', 'Photo uploaded to Vercel and set as your profile picture.');
+        })
+        .catch(function () {
+          profileImg.src = setPhotoData;
+          localStorage.setItem('custom_photo', setPhotoData);
+          showToast('info', 'Preview Only', 'Cloud upload unavailable — photo is active in this browser only.');
+        })
+        .finally(function () {
+          setPhotoData = null;
+          setPhotoInput.value = '';
+        });
+    });
+  }
+
+  if (setCropCancel) {
+    setCropCancel.addEventListener('click', function () {
+      if (setCropper) { setCropper.destroy(); setCropper = null; }
+      setCropWrap.style.display = 'none';
+      setPhotoData = null;
+      setPhotoInput.value = '';
+    });
+  }
 
 });
