@@ -8,18 +8,21 @@ for local preview).
 
 No `.env.local` copy required — the workspace IS the main checkout.
 
+**Note:** The `profile/` and `resume/` folders have been removed. All profile photos
+and resumes are served from Vercel Blob URLs (fetched via manifest.json on page load).
+
 ## How to run the server
 
 The server is a simple Node.js static file server at `.freebuff/serve.js` (or
-`C:\Users\Asus\.freebuff-serve.js` for paths without spaces).
+`C:\Users\Asus\.freebuff-serve.js` to avoid spaces in the path).
 
 ```bash
 node "C:\Users\Asus\.freebuff-serve.js"
 ```
 
-Serves all static files (index.html, style.css, script.js, profile/, resume/) on
-port 8080. The `api/` directory endpoints are Vercel serverless functions and will
-NOT work locally — the frontend handles this gracefully with fallbacks.
+Serves all static files (index.html, style.css, script.js, etc.) on port 8080.
+The `api/` directory endpoints are Vercel serverless functions and will NOT work
+locally — the frontend handles this gracefully with fallbacks.
 
 ### Windows detach recipe
 

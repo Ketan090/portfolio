@@ -156,18 +156,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   })();
 
-  // --- AUTO-DETECT PROFILE PHOTO ---
-  (function () {
-    var img = document.getElementById('profile-photo');
-    var fallbacks = ['profile/photo.png', 'profile/photo.webp', 'profile/photo.jpeg', 'profile/pic.jpg', 'profile/pic.png', 'profile/profile.jpg', 'profile/profile.png'];
-    var fIdx = 0;
 
-    img.addEventListener('error', function tryFallback() {
-      if (fIdx >= fallbacks.length) return;
-      img.src = fallbacks[fIdx];
-      fIdx++;
-    });
-  })();
 
   // --- THEME ---
   var theme = localStorage.getItem('theme') || 'dark';
@@ -790,7 +779,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (source === 'default') {
       localStorage.removeItem('custom_photo');
       localStorage.removeItem('link_photo_url');
-      profileImg.src = 'profile/photo.jpg';
+      // Photo source reset (no local folder — URL-only)
       if (photoCustomSection) photoCustomSection.style.display = 'none';
       if (photoDriveBtn) photoDriveBtn.style.display = 'none';
       if (photoDriveStatus) { photoDriveStatus.textContent = ''; photoDriveStatus.className = 'admin-drive-status'; }
@@ -825,7 +814,7 @@ document.addEventListener('DOMContentLoaded', function () {
       localStorage.removeItem('custom_resume_name');
       localStorage.removeItem('link_resume_url');
       if (resumeLink) {
-        resumeLink.href = 'resume/Ketan_Mahajan_Resume.pdf';
+        // Resume source reset (no local folder — URL-only)
         resumeLink.download = '';
       }
       if (resumeCustomSection) resumeCustomSection.style.display = 'none';
