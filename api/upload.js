@@ -1,4 +1,4 @@
-const { put } = require('@vercel/blob');
+const { put, list, del } = require('@vercel/blob');
 
 // Disable Vercel's default body parser so the manual readBody below
 // can consume the raw request stream (the default parser intercepts it).
@@ -53,6 +53,25 @@ module.exports = async function handler(req, res) {
       body = {};
     }
     
+    // Helper: delete old blobs of a given prefix, keeping only the target pathname
+    async function deleteOldBlobs(prefix, keepPathname) {
+      try {
+        const listed = await list({ token, prefix });
+        for (const blob of listed.blobs) {
+          if (blob.pathname !== keepPathname) {
+            try {
+              await del(blob.pathname, { token });
+              console.log(`Deleted old blob: ${blob.pathname}`);
+            } catch (e) {
+              console.warn(`Failed to delete old blob ${blob.pathname}:`, e.message);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Blob listing failed (non-fatal):', e.message);
+      }
+    }
+
     const { type, data, filename } = body;
 
     if (!type || !data) {
@@ -64,6 +83,7 @@ module.exports = async function handler(req, res) {
     const buffer = Buffer.from(base64Data, 'base64');
 
     if (type === 'photo') {
+      await deleteOldBlobs('profile_photo', 'profile_photo.jpg');
       const photoBlob = await put('profile_photo.jpg', buffer, {
         access: 'public',
         token,
@@ -91,6 +111,9 @@ module.exports = async function handler(req, res) {
         contentType: 'application/json'
       });
 
+      // Clean up any old suffixed manifest files
+      await deleteOldBlobs('manifest', 'manifest.json');
+
       return res.status(200).json({
         success: true,
         message: 'Profile photo stored and updated permanently',
@@ -98,6 +121,7 @@ module.exports = async function handler(req, res) {
         manifestUrl: manifestBlob.url
       });
     } else if (type === 'resume') {
+      await deleteOldBlobs('resume', 'resume.pdf');
       const resumeBlob = await put('resume.pdf', buffer, {
         access: 'public',
         token,
@@ -128,6 +152,9 @@ module.exports = async function handler(req, res) {
         allowOverwrite: true,
         contentType: 'application/json'
       });
+
+      // Clean up any old suffixed manifest files
+      await deleteOldBlobs('manifest', 'manifest.json');
 
       return res.status(200).json({
         success: true,

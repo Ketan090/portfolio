@@ -785,7 +785,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (photoDriveStatus) { photoDriveStatus.textContent = ''; photoDriveStatus.className = 'admin-drive-status'; }
     } else {
       if (photoCustomSection) photoCustomSection.style.display = '';
-      var stored = localStorage.getItem('link_photo_url') || localStorage.getItem('custom_photo');
+      var stored = localStorage.getItem('link_photo_url');
       if (stored) profileImg.src = stored;
     }
   }
@@ -825,13 +825,6 @@ document.addEventListener('DOMContentLoaded', function () {
       var stored = localStorage.getItem('link_resume_url');
       if (stored && resumeLink) {
         resumeLink.href = stored;
-      } else {
-        var storedData = localStorage.getItem('custom_resume_data');
-        var storedName = localStorage.getItem('custom_resume_name');
-        if (storedData && resumeLink) {
-          resumeLink.href = storedData;
-          if (storedName) resumeLink.download = storedName;
-        }
       }
     }
   }
@@ -848,13 +841,13 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // Initialize source toggles on page load
-  if (localStorage.getItem('link_photo_url') || localStorage.getItem('custom_photo')) {
+  if (localStorage.getItem('link_photo_url')) {
     if (photoSourceCustom) photoSourceCustom.checked = true;
     if (photoCustomSection) photoCustomSection.style.display = '';
   } else {
     if (photoSourceDefault) photoSourceDefault.checked = true;
   }
-  if (localStorage.getItem('link_resume_url') || localStorage.getItem('custom_resume_data')) {
+  if (localStorage.getItem('link_resume_url')) {
     if (resumeSourceCustom) resumeSourceCustom.checked = true;
     if (resumeCustomSection) resumeCustomSection.style.display = '';
   } else {
@@ -911,7 +904,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Direct Vercel Blob upload for manifest updates only (manifest.json uses only allowed CORS headers)
   function directBlobUpload(pathname, blob, contentType) {
-    return fetch('https://blob.vercel-storage.com/' + pathname, {
+    // Always overwrite the existing file at this pathname (no new files)
+    var url = 'https://blob.vercel-storage.com/' + pathname + '?allowOverwrite=true';
+    return fetch(url, {
       method: 'PUT',
       headers: {
         'authorization': 'Bearer ' + BLOB_TOKEN,
@@ -985,52 +980,25 @@ document.addEventListener('DOMContentLoaded', function () {
   // --- Photo (old crop UI removed — using set-photo-btn flow below) ---
   var profileImg = document.getElementById('profile-photo');
 
-  var storedPhoto = localStorage.getItem('custom_photo_bust') || localStorage.getItem('link_photo_url') || localStorage.getItem('custom_photo');
+  // Load cloud URL from localStorage (set by upload handlers)
+  var storedPhoto = localStorage.getItem('link_photo_url');
   if (storedPhoto && profileImg) {
     profileImg.src = storedPhoto;
   }
 
-  // --- Resume (old UI removed — using set-resume-btn flow below) ---
+  // --- Resume ---
   var resumeLink = document.getElementById('resume-link');
 
-  // Load stored PDF on page start
   var driveResumeUrl = localStorage.getItem('link_resume_url');
-  var storedBustResume = localStorage.getItem('custom_resume_bust');
-  var storedPdf = localStorage.getItem('custom_resume_data');
-  var storedPdfName = localStorage.getItem('custom_resume_name');
-
   if (driveResumeUrl && resumeLink) {
     resumeLink.href = driveResumeUrl;
-  } else if (storedBustResume && resumeLink) {
-    resumeLink.href = storedBustResume;
-    if (storedPdfName) resumeLink.download = storedPdfName;
-  } else if (storedPdf && resumeLink) {
-    resumeLink.href = storedPdf;
-    if (storedPdfName) resumeLink.download = storedPdfName;
   }
 
   var MANIFEST_URL = 'https://hsnf951gsdgczl1y.public.blob.vercel-storage.com/manifest.json';
 
   // --- Live Content Synchronization for All Visitors ---
   function syncLiveContent() {
-    // Step 1: Always load from localStorage first (set by upload handlers)
-    var localPhoto = localStorage.getItem('link_photo_url');
-    var localResume = localStorage.getItem('link_resume_url');
-    var localPhotoTs = parseInt(localStorage.getItem('photo_timestamp') || '0');
-    var localResumeTs = parseInt(localStorage.getItem('resume_timestamp') || '0');
-
-    if (localPhoto && profileImg) {
-      profileImg.src = localPhoto + (localPhoto.indexOf('?') === -1 ? '?t=' : '&t=') + Date.now();
-      var photoLinkInput = document.getElementById('admin-link-photo');
-      if (photoLinkInput) photoLinkInput.value = localPhoto;
-    }
-    if (localResume && resumeLink) {
-      resumeLink.href = localResume + (localResume.indexOf('?download') === -1 ? '?download=1' : '');
-      var resumeLinkInput = document.getElementById('admin-link-resume');
-      if (resumeLinkInput) resumeLinkInput.value = localResume;
-    }
-
-    // Step 2: Fetch manifest — only upgrade if manifest has a NEWER timestamp
+    // Manifest is the GLOBAL source of truth — all visitors see the same latest file.
     fetch(MANIFEST_URL + '?t=' + Date.now())
       .then(function (res) {
         if (!res.ok) throw new Error('Manifest fetch failed: ' + res.status);
@@ -1038,24 +1006,20 @@ document.addEventListener('DOMContentLoaded', function () {
       })
       .then(function (manifest) {
         if (!manifest) return;
-        // Photo: only use manifest URL if it is strictly newer than localStorage
-        if (manifest.photoUrl && manifest.photoTimestamp && manifest.photoTimestamp > localPhotoTs) {
-          var photoBust = manifest.photoUrl + (manifest.photoUrl.indexOf('?') === -1 ? '?t=' : '&t=') + manifest.photoTimestamp;
+        if (manifest.photoUrl) {
+          var photoBust = manifest.photoUrl + (manifest.photoUrl.indexOf('?') === -1 ? '?t=' : '&t=') + Date.now();
           if (profileImg) profileImg.src = photoBust;
           localStorage.setItem('link_photo_url', manifest.photoUrl);
-          localStorage.setItem('photo_timestamp', String(manifest.photoTimestamp));
           var pLi = document.getElementById('admin-link-photo');
           if (pLi) pLi.value = manifest.photoUrl;
         }
-        // Resume: only use manifest URL if it is strictly newer than localStorage
-        if (manifest.resumeUrl && manifest.resumeTimestamp && manifest.resumeTimestamp > localResumeTs) {
-          var resumeBust = manifest.resumeDownloadUrl || manifest.resumeUrl;
+        if (manifest.resumeUrl) {
+          var resumeUrl = manifest.resumeDownloadUrl || manifest.resumeUrl;
           if (resumeLink) {
-            resumeLink.href = resumeBust;
+            resumeLink.href = resumeUrl;
             if (manifest.resumeName) resumeLink.download = manifest.resumeName;
           }
           localStorage.setItem('link_resume_url', manifest.resumeUrl);
-          localStorage.setItem('resume_timestamp', String(manifest.resumeTimestamp));
           var rLi = document.getElementById('admin-link-resume');
           if (rLi) rLi.value = manifest.resumeUrl;
         }
@@ -1152,12 +1116,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
       uploadToBlob('profile_photo.jpg', setPhotoData, true, photoDriveStatus)
         .then(function (cloudUrl) {
-          var bustUrl = cloudUrl + (cloudUrl.indexOf('?') === -1 ? '?t=' : '&t=') + Date.now();
-          profileImg.src = bustUrl;
-          localStorage.setItem('custom_photo_bust', bustUrl);
+          // Clear all old local-only keys — cloud URL is the single source of truth
+          localStorage.removeItem('custom_photo');
+          localStorage.removeItem('custom_photo_bust');
           localStorage.setItem('link_photo_url', cloudUrl);
           localStorage.setItem('photo_timestamp', Date.now());
-          localStorage.setItem('custom_photo', setPhotoData);
+          profileImg.src = cloudUrl + (cloudUrl.indexOf('?') === -1 ? '?t=' : '&t=') + Date.now();
           showToast('success', 'Profile Picture Set', 'Photo uploaded to Vercel and set as your profile picture.');
           syncLiveContent();
           refreshLinks();
@@ -1215,9 +1179,11 @@ document.addEventListener('DOMContentLoaded', function () {
               resumeLink.href = downloadUrl;
               resumeLink.download = filename || 'Ketan_Mahajan_Resume.pdf';
             }
+            // Clear all old local-only keys — cloud URL is the single source of truth
+            localStorage.removeItem('custom_resume_data');
+            localStorage.removeItem('custom_resume_bust');
             localStorage.setItem('link_resume_url', cloudUrl);
             localStorage.setItem('resume_timestamp', Date.now());
-            localStorage.setItem('custom_resume_name', filename);
             showToast('success', 'Resume Uploaded', 'Resume PDF stored in Vercel Blob and live on the website.');
             syncLiveContent();
             refreshLinks();
