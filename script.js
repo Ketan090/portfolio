@@ -904,13 +904,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Direct Vercel Blob upload for manifest updates only (manifest.json uses only allowed CORS headers)
   function directBlobUpload(pathname, blob, contentType) {
-    // Always overwrite the existing file at this pathname (no new files)
-    var url = 'https://blob.vercel-storage.com/' + pathname + '?allowOverwrite=true';
+    // Overwrite the existing file at this pathname — no random suffix, no new files
+    var url = 'https://blob.vercel-storage.com/' + pathname;
     return fetch(url, {
       method: 'PUT',
       headers: {
         'authorization': 'Bearer ' + BLOB_TOKEN,
         'x-api-version': '7',
+        'x-add-random-suffix': '0',
+        'x-allow-overwrite': '1',
         'content-type': contentType || 'application/octet-stream'
       },
       body: blob
