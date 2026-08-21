@@ -480,13 +480,11 @@
           <h3 class="admin-title">Resume</h3>
           <p class="admin-subtitle">Upload a PDF to permanently store it in the cloud and use it as the website resume.</p>
           <div class="admin-upload-section">
-            <input type="file" id="admin-pdf-upload" accept=".pdf" />
-            <span class="admin-pdf-name" id="admin-pdf-name"></span>
-            <button id="admin-pdf-save" class="btn btn-primary admin-upload-btn" style="display:none;">Store &amp; Update Resume PDF</button>
-            <button id="admin-pdf-download" class="btn btn-outline admin-upload-btn" style="display:none;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Download PDF File
+            <button id="set-resume-btn" class="set-photo-btn" style="display:inline-flex;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              Choose Resume PDF &amp; Upload to Vercel
             </button>
+            <input type="file" id="set-resume-input" accept=".pdf" style="display:none;" />
             <span class="admin-drive-status" id="admin-pdf-drive-status"></span>
           </div>
         </div>
