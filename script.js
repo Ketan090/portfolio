@@ -696,7 +696,8 @@ document.addEventListener('DOMContentLoaded', function () {
     if (type === 'photo') {
       localStorage.setItem('link_photo_url', url);
       localStorage.setItem('photo_timestamp', Date.now());
-      profileImg.src = url;
+      // Cache-bust so the browser fetches the freshly uploaded file, not the cached old one
+      profileImg.src = url + (url.indexOf('?') === -1 ? '?t=' : '&t=') + Date.now();
       var photoLinkInput = document.getElementById('admin-link-photo');
       if (photoLinkInput) photoLinkInput.value = url;
     } else {
@@ -786,7 +787,7 @@ document.addEventListener('DOMContentLoaded', function () {
     } else {
       if (photoCustomSection) photoCustomSection.style.display = '';
       var stored = localStorage.getItem('link_photo_url');
-      if (stored) profileImg.src = stored;
+      if (stored) profileImg.src = stored + (stored.indexOf('?') === -1 ? '?t=' : '&t=') + Date.now();
     }
   }
 
@@ -890,6 +891,29 @@ document.addEventListener('DOMContentLoaded', function () {
     return new Blob([arr], { type: mime });
   }
 
+  // Delete ALL blobs with a given prefix via Vercel Blob REST API
+  function cleanupBlobPrefix(prefix) {
+    return fetch('https://blob.vercel-storage.com?prefix=' + encodeURIComponent(prefix), {
+      method: 'GET',
+      headers: { 'authorization': 'Bearer ' + BLOB_TOKEN, 'x-api-version': '7' }
+    })
+    .then(function (res) { return res.ok ? res.json() : { blobs: [] }; })
+    .catch(function () { return { blobs: [] }; })
+    .then(function (data) {
+      var blobs = data.blobs || [];
+      var chain = Promise.resolve();
+      blobs.forEach(function (b) {
+        chain = chain.then(function () {
+          return fetch('https://blob.vercel-storage.com/' + encodeURIComponent(b.pathname), {
+            method: 'DELETE',
+            headers: { 'authorization': 'Bearer ' + BLOB_TOKEN, 'x-api-version': '7' }
+          }).catch(function () {});
+        });
+      });
+      return chain;
+    });
+  }
+
   // Upload via /api/save serverless function (works on Vercel, avoids CORS limits)
   function uploadViaServer(type, dataUrl, filename) {
     return fetch('/api/save', {
@@ -935,11 +959,54 @@ document.addEventListener('DOMContentLoaded', function () {
       });
   }
 
+  // --- Upload progress helper ---
+  function showUploadProgress(prefix, stepText, pct) {
+    var wrap = document.getElementById('admin-' + prefix + '-progress');
+    var fill = document.getElementById('admin-' + prefix + '-progress-fill');
+    var step = document.getElementById('admin-' + prefix + '-progress-step');
+    if (!wrap || !fill || !step) return;
+    wrap.classList.add('active');
+    if (pct === 'indeterminate') {
+      fill.className = 'admin-progress-fill indeterminate';
+    } else {
+      fill.className = 'admin-progress-fill';
+      fill.style.width = Math.min(pct, 100) + '%';
+    }
+    step.classList.add('active');
+    step.classList.remove('done');
+    step.querySelector('.step-text').textContent = stepText;
+  }
+
+  function finishUploadProgress(prefix, success) {
+    var wrap = document.getElementById('admin-' + prefix + '-progress');
+    var fill = document.getElementById('admin-' + prefix + '-progress-fill');
+    var step = document.getElementById('admin-' + prefix + '-progress-step');
+    if (!wrap || !fill || !step) return;
+    if (success) {
+      fill.className = 'admin-progress-fill';
+      fill.style.width = '100%';
+      step.classList.remove('active');
+      step.classList.add('done');
+      step.querySelector('.step-text').textContent = 'Done!';
+    } else {
+      step.classList.remove('active');
+      step.querySelector('.step-text').textContent = 'Failed';
+    }
+    setTimeout(function () {
+      wrap.classList.remove('active');
+      fill.style.width = '0%';
+      step.classList.remove('active', 'done');
+      step.querySelector('.step-text').textContent = '';
+    }, success ? 3000 : 5000);
+  }
+
   function uploadToBlob(pathname, data, isImage, statusEl) {
+    var prefix = isImage ? 'photo' : 'resume';
     if (statusEl) {
       statusEl.textContent = 'Storing in cloud...';
       statusEl.className = 'admin-drive-status';
     }
+    showUploadProgress(prefix, 'Preparing...', 10);
 
     var type = isImage ? 'photo' : 'resume';
     var filename = isImage ? 'profile_photo.jpg' : 'resume.pdf';
@@ -947,20 +1014,29 @@ document.addEventListener('DOMContentLoaded', function () {
     // Primary: upload through Vercel serverless function /api/save
     return uploadViaServer(type, data, filename)
       .then(function (result) {
+        showUploadProgress(prefix, 'Saving manifest...', 85);
         var url = isImage ? result.photoUrl : (result.resumeUrl || result.downloadUrl);
         var downloadUrl = isImage ? url : (result.downloadUrl || url);
+        finishUploadProgress(prefix, true);
         onLinkReady(type, url, statusEl, downloadUrl);
         return url;
       })
       .catch(function (serverErr) {
         // Fallback: try direct blob upload if /api/save is unavailable (local dev without server)
         console.warn('Server upload failed, trying direct blob:', serverErr.message);
+        showUploadProgress(prefix, 'Uploading to cloud...', 'indeterminate');
         var blob = dataURLToBlob(data);
-        if (!blob) throw new Error('Invalid file data');
+        if (!blob) { finishUploadProgress(prefix, false); throw new Error('Invalid file data'); }
         var contentType = blob.type || (isImage ? 'image/jpeg' : 'application/pdf');
 
-        return directBlobUpload(pathname, blob, contentType)
+        // Delete ALL existing blobs with this prefix so the upload is a clean replace
+        return cleanupBlobPrefix(prefix)
+          .then(function () {
+            showUploadProgress(prefix, 'Uploading to cloud...', 'indeterminate');
+            return directBlobUpload(pathname, blob, contentType);
+          })
           .then(function (result) {
+            showUploadProgress(prefix, 'Saving manifest...', 85);
             var updates = {};
             if (isImage) {
               updates.photoUrl = result.url;
@@ -972,9 +1048,14 @@ document.addEventListener('DOMContentLoaded', function () {
               updates.resumeTimestamp = Date.now();
             }
             return updateCloudManifest(updates).then(function () {
+              finishUploadProgress(prefix, true);
               onLinkReady(isImage ? 'photo' : 'resume', result.url, statusEl, result.downloadUrl);
               return result.url;
             });
+          })
+          .catch(function (err) {
+            finishUploadProgress(prefix, false);
+            throw err;
           });
       });
   }
@@ -985,7 +1066,7 @@ document.addEventListener('DOMContentLoaded', function () {
   // Load cloud URL from localStorage (set by upload handlers)
   var storedPhoto = localStorage.getItem('link_photo_url');
   if (storedPhoto && profileImg) {
-    profileImg.src = storedPhoto;
+    profileImg.src = storedPhoto + (storedPhoto.indexOf('?') === -1 ? '?t=' : '&t=') + Date.now();
   }
 
   // --- Resume ---
@@ -994,6 +1075,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var driveResumeUrl = localStorage.getItem('link_resume_url');
   if (driveResumeUrl && resumeLink) {
     resumeLink.href = driveResumeUrl;
+    resumeLink.style.display = '';
   }
 
   var MANIFEST_URL = 'https://hsnf951gsdgczl1y.public.blob.vercel-storage.com/manifest.json';
@@ -1008,6 +1090,7 @@ document.addEventListener('DOMContentLoaded', function () {
       })
       .then(function (manifest) {
         if (!manifest) return;
+        // Photo: always point to the latest generated link
         if (manifest.photoUrl) {
           var photoBust = manifest.photoUrl + (manifest.photoUrl.indexOf('?') === -1 ? '?t=' : '&t=') + Date.now();
           if (profileImg) profileImg.src = photoBust;
@@ -1015,15 +1098,19 @@ document.addEventListener('DOMContentLoaded', function () {
           var pLi = document.getElementById('admin-link-photo');
           if (pLi) pLi.value = manifest.photoUrl;
         }
+        // Resume: always point to the latest generated link; hide button if none exists
         if (manifest.resumeUrl) {
           var resumeUrl = manifest.resumeDownloadUrl || manifest.resumeUrl;
           if (resumeLink) {
             resumeLink.href = resumeUrl;
+            resumeLink.style.display = '';
             if (manifest.resumeName) resumeLink.download = manifest.resumeName;
           }
           localStorage.setItem('link_resume_url', manifest.resumeUrl);
           var rLi = document.getElementById('admin-link-resume');
           if (rLi) rLi.value = manifest.resumeUrl;
+        } else {
+          if (resumeLink) resumeLink.style.display = 'none';
         }
       })
       .catch(function () {
@@ -1037,6 +1124,9 @@ document.addEventListener('DOMContentLoaded', function () {
               }
               if (data.resume && data.resume.url && resumeLink) {
                 resumeLink.href = data.resume.url;
+                resumeLink.style.display = '';
+              } else if (resumeLink) {
+                resumeLink.style.display = 'none';
               }
             }
           })
@@ -1048,7 +1138,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(function (res) {
                   if (res && res.success) {
                     if (res.photoUrl && profileImg) profileImg.src = res.photoUrl;
-                    if (res.resumeUrl && resumeLink) resumeLink.href = res.resumeUrl;
+                    if (res.resumeUrl && resumeLink) {
+                      resumeLink.href = res.resumeUrl;
+                      resumeLink.style.display = '';
+                    } else if (resumeLink) {
+                      resumeLink.style.display = 'none';
+                    }
                   }
                 })
                 .catch(function () {});

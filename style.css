@@ -1893,6 +1893,72 @@ a.contact-card-value:hover { color: var(--primary); }
   color: #ef4444;
 }
 
+.admin-progress-wrap {
+  margin-top: 8px;
+  display: none;
+}
+
+.admin-progress-wrap.active {
+  display: block;
+}
+
+.admin-progress-track {
+  width: 100%;
+  height: 4px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.admin-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+
+.admin-progress-fill.indeterminate {
+  width: 30%;
+  animation: progress-indeterminate 1.2s ease-in-out infinite;
+}
+
+@keyframes progress-indeterminate {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+.admin-progress-step {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.admin-progress-step .step-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+}
+
+.admin-progress-step.active .step-dot {
+  background: #8b5cf6;
+  animation: pulse-dot 1s ease infinite;
+}
+
+.admin-progress-step.done .step-dot {
+  background: #22c55e;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 .admin-delete-btn {
   display: block;
   width: 100%;

@@ -8,8 +8,7 @@
   <meta name="keywords" content="Ketan Mahajan, Full Stack Developer, Web Developer, React, Next.js, Portfolio" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=7" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />    <link rel="stylesheet" href="style.css?v=8" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css" />
 </head>
 <body>
@@ -142,7 +141,7 @@
               </div>
             </div>
             <div class="avatar-inner" id="avatar-inner">
-              <img src="https://hsnf951gsdgczl1y.public.blob.vercel-storage.com/profile_photo.jpg" alt="Ketan Mahajan" class="profile-photo" id="profile-photo" />
+              <img src="" alt="Ketan Mahajan" class="profile-photo" id="profile-photo" />
             </div>
           </div>
           <div class="hero-status">
@@ -194,8 +193,7 @@
                 <span class="stat-value">3</span>
                 <span class="stat-label">Languages</span>
               </div>
-            </div>
-            <a href="https://hsnf951gsdgczl1y.public.blob.vercel-storage.com/resume.pdf?download=1" download="Ketan_Mahajan_Resume.pdf" class="btn btn-outline about-btn" id="resume-link">
+            </div>              <a href="" download="Ketan_Mahajan_Resume.pdf" class="btn btn-outline about-btn" id="resume-link" style="display:none;">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Download Resume
             </a>
@@ -474,6 +472,10 @@
               </div>
             </div>
             <span class="admin-drive-status" id="admin-photo-drive-status"></span>
+            <div class="admin-progress-wrap" id="admin-photo-progress">
+              <div class="admin-progress-track"><div class="admin-progress-fill" id="admin-photo-progress-fill"></div></div>
+              <div class="admin-progress-step" id="admin-photo-progress-step"><span class="step-dot"></span><span class="step-text"></span></div>
+            </div>
           </div>
         </div>
         <div class="admin-tab-panel" id="tab-pdf">
@@ -486,6 +488,10 @@
             </button>
             <input type="file" id="set-resume-input" accept=".pdf" style="display:none;" />
             <span class="admin-drive-status" id="admin-pdf-drive-status"></span>
+            <div class="admin-progress-wrap" id="admin-pdf-progress">
+              <div class="admin-progress-track"><div class="admin-progress-fill" id="admin-pdf-progress-fill"></div></div>
+              <div class="admin-progress-step" id="admin-pdf-progress-step"><span class="step-dot"></span><span class="step-text"></span></div>
+            </div>
           </div>
         </div>
         <div class="admin-tab-panel" id="tab-links">
@@ -516,6 +522,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
   <script src="blob-token.js"></script>
   <script src="blob-client.js"></script>
-  <script src="script.js?v=5"></script>
+  <script src="script.js?v=7"></script>
 </body>
 </html>

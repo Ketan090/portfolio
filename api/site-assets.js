@@ -23,7 +23,6 @@ function fallbackResumeUrl(origin) {
 function mapPathname(pathname) {
   const norm = String(pathname || '').split('/').pop();
   if (norm === 'profile_photo.jpg') return 'photo';
-  if (norm.startsWith('profile_photo.')) return 'photo';
   if (norm === 'resume.pdf') return 'resume';
   return null;
 }
