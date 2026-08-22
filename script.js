@@ -577,10 +577,14 @@ document.addEventListener('DOMContentLoaded', function () {
   function refreshLinks() {
     var photoInput = document.getElementById('admin-link-photo');
     var resumeInput = document.getElementById('admin-link-resume');
-    var photoUrl = localStorage.getItem('link_photo_url');
-    var resumeUrl = localStorage.getItem('link_resume_url');
-    if (photoInput) photoInput.value = photoUrl || 'No photo link yet';
-    if (resumeInput) resumeInput.value = resumeUrl || 'No resume link yet';
+    // Always fetch from manifest (cloud is source of truth)
+    fetch(MANIFEST_URL + '?t=' + Date.now())
+      .then(function (r) { return r.ok ? r.json() : {}; })
+      .catch(function () { return {}; })
+      .then(function (m) {
+        if (photoInput) photoInput.value = (m && m.photoUrl) ? m.photoUrl : 'No photo link yet';
+        if (resumeInput) resumeInput.value = (m && m.resumeUrl) ? m.resumeUrl : 'No resume link yet';
+      });
   }
 
   document.querySelectorAll('.admin-link-copy').forEach(function (btn) {
@@ -694,15 +698,11 @@ document.addEventListener('DOMContentLoaded', function () {
   // --- Link upload (0x0.st / catbox via Apps Script) ---
   function onLinkReady(type, url, statusEl, downloadUrl) {
     if (type === 'photo') {
-      localStorage.setItem('link_photo_url', url);
-      localStorage.setItem('photo_timestamp', Date.now());
       // Cache-bust so the browser fetches the freshly uploaded file, not the cached old one
       profileImg.src = url + (url.indexOf('?') === -1 ? '?t=' : '&t=') + Date.now();
       var photoLinkInput = document.getElementById('admin-link-photo');
       if (photoLinkInput) photoLinkInput.value = url;
     } else {
-      localStorage.setItem('link_resume_url', url);
-      localStorage.setItem('resume_timestamp', Date.now());
       if (resumeLink) resumeLink.href = downloadUrl || url;
       var resumeLinkInput = document.getElementById('admin-link-resume');
       if (resumeLinkInput) resumeLinkInput.value = url;
@@ -778,16 +778,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function setPhotoSource(source) {
     if (source === 'default') {
-      localStorage.removeItem('custom_photo');
-      localStorage.removeItem('link_photo_url');
-      // Photo source reset (no local folder — URL-only)
       if (photoCustomSection) photoCustomSection.style.display = 'none';
       if (photoDriveBtn) photoDriveBtn.style.display = 'none';
       if (photoDriveStatus) { photoDriveStatus.textContent = ''; photoDriveStatus.className = 'admin-drive-status'; }
     } else {
       if (photoCustomSection) photoCustomSection.style.display = '';
-      var stored = localStorage.getItem('link_photo_url');
-      if (stored) profileImg.src = stored + (stored.indexOf('?') === -1 ? '?t=' : '&t=') + Date.now();
     }
   }
 
@@ -811,22 +806,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function setResumeSource(source) {
     if (source === 'default') {
-      localStorage.removeItem('custom_resume_data');
-      localStorage.removeItem('custom_resume_name');
-      localStorage.removeItem('link_resume_url');
-      if (resumeLink) {
-        // Resume source reset (no local folder — URL-only)
-        resumeLink.download = '';
-      }
+      if (resumeLink) resumeLink.download = '';
       if (resumeCustomSection) resumeCustomSection.style.display = 'none';
       if (pdfDriveBtn) pdfDriveBtn.style.display = 'none';
       if (pdfDriveStatus) { pdfDriveStatus.textContent = ''; pdfDriveStatus.className = 'admin-drive-status'; }
     } else {
       if (resumeCustomSection) resumeCustomSection.style.display = '';
-      var stored = localStorage.getItem('link_resume_url');
-      if (stored && resumeLink) {
-        resumeLink.href = stored;
-      }
     }
   }
 
@@ -841,19 +826,11 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  // Initialize source toggles on page load
-  if (localStorage.getItem('link_photo_url')) {
-    if (photoSourceCustom) photoSourceCustom.checked = true;
-    if (photoCustomSection) photoCustomSection.style.display = '';
-  } else {
-    if (photoSourceDefault) photoSourceDefault.checked = true;
-  }
-  if (localStorage.getItem('link_resume_url')) {
-    if (resumeSourceCustom) resumeSourceCustom.checked = true;
-    if (resumeCustomSection) resumeCustomSection.style.display = '';
-  } else {
-    if (resumeSourceDefault) resumeSourceDefault.checked = true;
-  }
+  // Source toggles default to custom (manifest is source of truth)
+  if (photoSourceCustom) photoSourceCustom.checked = true;
+  if (photoCustomSection) photoCustomSection.style.display = '';
+  if (resumeSourceCustom) resumeSourceCustom.checked = true;
+  if (resumeCustomSection) resumeCustomSection.style.display = '';
 
   // --- Permanent Local File Save Helper ---
   function saveLocalFile(type, data, filename) {
@@ -1063,22 +1040,13 @@ document.addEventListener('DOMContentLoaded', function () {
   // --- Photo (old crop UI removed — using set-photo-btn flow below) ---
   var profileImg = document.getElementById('profile-photo');
 
-  // Load cloud URL from localStorage (set by upload handlers)
-  var storedPhoto = localStorage.getItem('link_photo_url');
-  if (storedPhoto && profileImg) {
-    profileImg.src = storedPhoto + (storedPhoto.indexOf('?') === -1 ? '?t=' : '&t=') + Date.now();
-  }
-
   // --- Resume ---
   var resumeLink = document.getElementById('resume-link');
 
-  var driveResumeUrl = localStorage.getItem('link_resume_url');
-  if (driveResumeUrl && resumeLink) {
-    resumeLink.href = driveResumeUrl;
-    resumeLink.style.display = '';
-  }
-
   var MANIFEST_URL = 'https://hsnf951gsdgczl1y.public.blob.vercel-storage.com/manifest.json';
+
+  // Clear any leftover local-only photo/resume data — manifest is the single source of truth
+  ['link_photo_url','link_resume_url','photo_timestamp','resume_timestamp','custom_photo','custom_photo_bust','custom_resume_data','custom_resume_bust','custom_resume_name'].forEach(function(k) { localStorage.removeItem(k); });
 
   // --- Live Content Synchronization for All Visitors ---
   function syncLiveContent() {
@@ -1094,7 +1062,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (manifest.photoUrl) {
           var photoBust = manifest.photoUrl + (manifest.photoUrl.indexOf('?') === -1 ? '?t=' : '&t=') + Date.now();
           if (profileImg) profileImg.src = photoBust;
-          localStorage.setItem('link_photo_url', manifest.photoUrl);
+
           var pLi = document.getElementById('admin-link-photo');
           if (pLi) pLi.value = manifest.photoUrl;
         }
@@ -1106,7 +1074,7 @@ document.addEventListener('DOMContentLoaded', function () {
             resumeLink.style.display = '';
             if (manifest.resumeName) resumeLink.download = manifest.resumeName;
           }
-          localStorage.setItem('link_resume_url', manifest.resumeUrl);
+
           var rLi = document.getElementById('admin-link-resume');
           if (rLi) rLi.value = manifest.resumeUrl;
         } else {
@@ -1213,20 +1181,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
       uploadToBlob('profile_photo.jpg', setPhotoData, true, photoDriveStatus)
         .then(function (cloudUrl) {
-          // Clear all old local-only keys — cloud URL is the single source of truth
-          localStorage.removeItem('custom_photo');
-          localStorage.removeItem('custom_photo_bust');
-          localStorage.setItem('link_photo_url', cloudUrl);
-          localStorage.setItem('photo_timestamp', Date.now());
           profileImg.src = cloudUrl + (cloudUrl.indexOf('?') === -1 ? '?t=' : '&t=') + Date.now();
           showToast('success', 'Profile Picture Set', 'Photo uploaded to Vercel and set as your profile picture.');
           syncLiveContent();
           refreshLinks();
         })
         .catch(function () {
-          profileImg.src = setPhotoData;
-          localStorage.setItem('custom_photo', setPhotoData);
-          showToast('info', 'Preview Only', 'Cloud upload unavailable — photo is active in this browser only.');
+          showToast('error', 'Upload Failed', 'Cloud upload failed. Please try again.', 6000);
         })
         .finally(function () {
           setPhotoData = null;
@@ -1276,23 +1237,13 @@ document.addEventListener('DOMContentLoaded', function () {
               resumeLink.href = downloadUrl;
               resumeLink.download = filename || 'Ketan_Mahajan_Resume.pdf';
             }
-            // Clear all old local-only keys — cloud URL is the single source of truth
-            localStorage.removeItem('custom_resume_data');
-            localStorage.removeItem('custom_resume_bust');
-            localStorage.setItem('link_resume_url', cloudUrl);
-            localStorage.setItem('resume_timestamp', Date.now());
+
             showToast('success', 'Resume Uploaded', 'Resume PDF stored in Vercel Blob and live on the website.');
             syncLiveContent();
             refreshLinks();
           })
           .catch(function () {
-            if (resumeLink) {
-              resumeLink.href = dataUrl;
-              resumeLink.download = filename || 'Ketan_Mahajan_Resume.pdf';
-            }
-            localStorage.setItem('custom_resume_data', dataUrl);
-            localStorage.setItem('custom_resume_name', filename);
-            showToast('info', 'Preview Only', 'Cloud upload unavailable — resume is active in this browser only.');
+            showToast('error', 'Upload Failed', 'Cloud upload failed. Please try again.', 6000);
           })
           .finally(function () {
             setResumeInput.value = '';
